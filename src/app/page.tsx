@@ -1,65 +1,24 @@
-import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, ChartLineUp, MagicWand, QrCode, SplitHorizontal, Sparkle } from "@phosphor-icons/react/dist/ssr";
+import { Nav } from "@/components/nav";
+import { Badge, LinkButton, Panel } from "@/components/ui";
+import { plans } from "@/lib/plans";
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+  const features = [
+    [QrCode, "25 QR types", "URL, text, WiFi, contact, vCard, menus, PDFs, email, SMS, phone, and campaign links."],
+    [MagicWand, "AI QR Art", "Generate polished frames around scan-safe QR matrices with regenerate controls and style presets."],
+    [ChartLineUp, "Analytics", "Unique scans, device mix, city trends, timeline charts, UTM capture, and CSV export."],
+    [SplitHorizontal, "Smart Redirect", "Split one QR across several destinations with weighted A/B routing and conversion pixels."],
+  ];
+  return <div className="min-h-[100dvh] bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50"><Nav />
+    <main>
+      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:py-24">
+        <div className="self-center"><Badge>AI-powered QR platform</Badge><h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-none tracking-tighter md:text-7xl">Create QR codes by chatting, styling, and testing live.</h1><p className="mt-6 max-w-[62ch] text-lg leading-relaxed text-zinc-600 dark:text-zinc-300">QRForge is a complete SaaS for static QR, dynamic QR, AI art, analytics, folders, bulk creation, subscriptions, and campaign optimization.</p><div className="mt-8 flex flex-wrap gap-3"><LinkButton href="/dashboard/create" className="gap-2">Create Your QR Code <ArrowRight size={18}/></LinkButton><Link href="/pricing" className="inline-flex min-h-10 items-center rounded-full border border-zinc-200 px-5 text-sm font-semibold dark:border-white/10">Compare plans</Link></div><div className="mt-7 flex flex-wrap gap-4 text-sm text-zinc-500"><span>No credit card</span><span>Magic link auth</span><span>Pro from $19/mo</span></div></div>
+        <div className="relative"><div className="absolute -inset-4 rounded-[3rem] bg-emerald-500/10 blur-3xl"/><Panel className="relative grid gap-4 p-4 sm:p-6"><div className="grid gap-4 sm:grid-cols-[1fr_240px]"><div className="rounded-[1.75rem] border border-zinc-200 bg-zinc-50 p-4 dark:border-white/10 dark:bg-zinc-950"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Prompt</p><p className="mt-3 text-2xl font-semibold tracking-tight">Make a restaurant menu QR with warm brand colors and a ceramic tile art frame.</p><div className="mt-5 h-2 w-2/3 rounded-full bg-zinc-200 dark:bg-zinc-800"/><div className="mt-3 h-2 w-1/2 rounded-full bg-zinc-200 dark:bg-zinc-800"/></div><div className="grid place-items-center rounded-[1.75rem] bg-white p-4 shadow-inner dark:bg-zinc-900"><div className="grid size-44 grid-cols-5 gap-1 rounded-2xl bg-white p-3 shadow-xl">{Array.from({ length: 25 }).map((_, i) => <span key={i} className={`rounded ${[0,1,2,5,10,11,12,14,17,20,22,23,24].includes(i) ? "bg-zinc-950" : "bg-emerald-100"}`}/>)}</div></div></div><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-3xl bg-zinc-950 p-4 text-white"><p className="text-3xl font-semibold">1,247</p><p className="text-sm text-zinc-400">scans</p></div><div className="rounded-3xl border border-zinc-200 p-4 dark:border-white/10"><p className="text-3xl font-semibold">7.8%</p><p className="text-sm text-zinc-500">conversion</p></div><div className="rounded-3xl border border-zinc-200 p-4 dark:border-white/10"><p className="text-3xl font-semibold">60/40</p><p className="text-sm text-zinc-500">A/B split</p></div></div></Panel></div>
+      </section>
+      <section id="ai-qr-art" className="mx-auto max-w-7xl px-4 py-10 sm:px-6"><div className="grid gap-4 lg:grid-cols-4">{features.map(([Icon, title, body]) => <Panel key={String(title)} className="p-6"><Icon size={28} weight="bold" className="text-emerald-600"/><h3 className="mt-5 text-xl font-semibold tracking-tight">{String(title)}</h3><p className="mt-2 text-sm leading-6 text-zinc-500">{String(body)}</p></Panel>)}</div></section>
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6"><div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><Badge>Pricing</Badge><h2 className="mt-4 text-4xl font-semibold tracking-tighter">Freemium that grows into campaigns.</h2></div><Link href="/dashboard" className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Start free</Link></div><div className="grid gap-4 md:grid-cols-4">{plans.map((plan) => <Panel key={plan.id} className={plan.id === "pro" ? "border-emerald-500/50 ring-4 ring-emerald-500/10" : ""}><p className="font-semibold">{plan.name}</p><p className="mt-4 text-4xl font-semibold tracking-tight">${plan.price}<span className="text-sm font-medium text-zinc-500">/mo</span></p><p className="mt-3 min-h-12 text-sm text-zinc-500">{plan.headline}</p><ul className="mt-5 grid gap-2 text-sm">{plan.features.map((feature) => <li key={feature} className="flex gap-2"><Sparkle className="mt-0.5 text-emerald-600" size={15}/>{feature}</li>)}</ul><LinkButton href={`/api/stripe/checkout?plan=${plan.id}`} className="mt-6 w-full">{plan.price ? "Subscribe" : "Start free"}</LinkButton></Panel>)}</div></section>
+    </main>
+  </div>;
 }
