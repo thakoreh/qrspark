@@ -28,6 +28,8 @@ async function syncBilling(args: {
   stripeSubscriptionId?: string;
   plan: PlanId;
 }) {
+  if (!args.email && !args.clerkUserId && !args.stripeCustomerId) return;
+
   const convex = getConvexHttpClient();
   await convex?.mutation(api.users.updateBilling, args);
 }
