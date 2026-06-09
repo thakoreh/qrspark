@@ -10,3 +10,8 @@ export const plans = [
 export function getPlan(id?: string | null) {
   return plans.find((plan) => plan.id === id) || plans[0];
 }
+
+export function planForPriceId(priceId?: string | null): PlanId | null {
+  if (!priceId) return null;
+  return plans.find((plan) => plan.stripePriceId === priceId)?.id ?? null;
+}

@@ -10,4 +10,6 @@ const protectedProxy = clerkMiddleware(async (auth, req) => {
 
 export default hasClerk ? protectedProxy : function openProxy() { return NextResponse.next(); };
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+export const config = {
+  matcher: ["/(api|trpc)(.*)", "/__clerk/:path*", "/((?!_next/static|_next/image|favicon.ico).*)"],
+};

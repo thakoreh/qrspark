@@ -1,10 +1,14 @@
-const authConfig = {
-  providers: [
-    {
-      domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
-      applicationID: "convex",
-    },
-  ],
-};
+const clerkJwtIssuerDomain = process.env["CLERK_JWT_ISSUER_DOMAIN"];
+
+const providers = clerkJwtIssuerDomain
+  ? [
+      {
+        domain: clerkJwtIssuerDomain,
+        applicationID: "convex",
+      },
+    ]
+  : [];
+
+const authConfig = { providers };
 
 export default authConfig;

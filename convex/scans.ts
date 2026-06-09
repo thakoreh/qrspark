@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 export const logScan = mutation({
   args: {
@@ -33,5 +33,14 @@ export const logConversion = mutation({
       value: args.value,
       createdAt: Date.now(),
     });
+  },
+});
+
+export const recentBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args) => {
+    const scans = await ctx.db.query("scans").withIndex("by_slug", (q: any) => q.eq("slug", args.slug)).order("desc").take(10);
+    const conversions = await ctx.db.query("conversions").withIndex("by_slug", (q: any) => q.eq("slug", args.slug)).order("desc").take(10);
+    return { scans, conversions };
   },
 });
