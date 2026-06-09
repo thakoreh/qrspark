@@ -8,10 +8,10 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "QRForge | QR generator MVP with analytics demos",
-  description: "Create branded QR codes, export PNG/SVG/PDF, preview analytics, and test Smart Redirect demo flows.",
+  title: "QRSpark | Smart QR Campaigns for Local Businesses",
+  description: "Turn print materials into trackable campaigns with dynamic QR codes, smart redirects, conversion pixels, and local-business analytics.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
-  openGraph: { title: "QRForge", description: "QR code SaaS MVP with provider-ready billing, auth, and analytics scaffolds", type: "website" },
+  openGraph: { title: "QRSpark", description: "Smart QR campaign analytics for restaurants, real estate, events, gyms, clinics, and local businesses", type: "website" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

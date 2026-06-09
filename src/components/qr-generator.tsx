@@ -15,7 +15,7 @@ const kinds: { id: QrKind; label: string }[] = [
 
 export function QrGenerator() {
   const [kind, setKind] = useState<QrKind>("url");
-  const [values, setValues] = useState<Record<string, string>>({ url: "https://qrforge.app/demo", content: "https://qrforge.app/demo", ssid: "QRForge Guest", password: "welcome2026", name: "Maya Patel", company: "Northline Studio", email: "maya@northline.example", phone: "+13128471928" });
+  const [values, setValues] = useState<Record<string, string>>({ url: "https://qrspark.io/demo", content: "https://qrspark.io/demo", ssid: "QRSpark Guest", password: "welcome2026", name: "Maya Patel", company: "Northline Studio", email: "maya@northline.example", phone: "+13128471928" });
   const [dark, setDark] = useState("#18181b");
   const [light, setLight] = useState("#ffffff");
   const [style, setStyle] = useState("rounded");
@@ -28,9 +28,9 @@ export function QrGenerator() {
   useEffect(() => { QRCode.toDataURL(payload, { width: 420, margin: 2, color: { dark, light }, errorCorrectionLevel: "H" }).then(setDataUrl).catch(() => toast.error("QR preview failed")); }, [payload, dark, light]);
   function update(key: string, value: string) { setValues((current) => ({ ...current, [key]: value })); }
   async function download(format: "png" | "svg" | "pdf") {
-    if (format === "png") { const a = document.createElement("a"); a.href = dataUrl; a.download = "qrforge-code.png"; a.click(); }
-    if (format === "svg") { const svg = await QRCode.toString(payload, { type: "svg", color: { dark, light }, errorCorrectionLevel: "H" }); const blob = new Blob([svg], { type: "image/svg+xml" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "qrforge-code.svg"; a.click(); }
-    if (format === "pdf") { const pdf = new jsPDF({ unit: "px", format: [560, 700] }); pdf.setFontSize(24); pdf.text("QRForge QR Code", 70, 70); pdf.addImage(dataUrl, "PNG", 70, 110, 420, 420); pdf.save("qrforge-code.pdf"); }
+    if (format === "png") { const a = document.createElement("a"); a.href = dataUrl; a.download = "qrspark-code.png"; a.click(); }
+    if (format === "svg") { const svg = await QRCode.toString(payload, { type: "svg", color: { dark, light }, errorCorrectionLevel: "H" }); const blob = new Blob([svg], { type: "image/svg+xml" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "qrspark-code.svg"; a.click(); }
+    if (format === "pdf") { const pdf = new jsPDF({ unit: "px", format: [560, 700] }); pdf.setFontSize(24); pdf.text("QRSpark QR Code", 70, 70); pdf.addImage(dataUrl, "PNG", 70, 110, 420, 420); pdf.save("qrspark-code.pdf"); }
     toast.success(`${format.toUpperCase()} export ready`);
   }
   async function makeArt() {

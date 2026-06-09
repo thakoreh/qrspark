@@ -8,7 +8,7 @@ export default function AdminPage() {
       <div className="grid gap-5">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">Admin demo</p>
-          <h1 className="text-4xl font-semibold tracking-tighter">QRForge operations preview</h1>
+          <h1 className="text-4xl font-semibold tracking-tighter">QRSpark operations preview</h1>
           <p className="mt-2 text-zinc-500">
             Demo view for plan, usage, billing, AI credit, and webhook controls. Connect Convex and Stripe webhooks before treating these as live metrics.
           </p>

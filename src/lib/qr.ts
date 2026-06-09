@@ -13,7 +13,7 @@ END:VCARD`;
   if (kind === "email") return `mailto:${values.email || ""}?subject=${encodeURIComponent(values.subject || "")}&body=${encodeURIComponent(values.body || "")}`;
   if (kind === "sms") return `SMSTO:${values.phone || ""}:${values.message || ""}`;
   if (kind === "phone") return `tel:${values.phone || ""}`;
-  return values.content || values.url || "https://qrforge.app";
+  return values.content || values.url || "https://qrspark.io";
 }
 
 export function weightedDestination(destinations: { url: string; weight: number }[]) {
@@ -24,5 +24,5 @@ export function weightedDestination(destinations: { url: string; weight: number 
     cursor -= item.weight;
     if (cursor <= 0) return item.url;
   }
-  return clean[0]?.url || "https://qrforge.app";
+  return clean[0]?.url || "https://qrspark.io";
 }
