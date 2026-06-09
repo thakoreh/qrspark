@@ -42,18 +42,23 @@ export const getCurrentUser = query({
   },
 });
 
-export const updateBillingByEmail = mutation({
+export const updateBilling = mutation({
   args: {
-    email: v.string(),
+    email: v.optional(v.string()),
+    clerkUserId: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("starter"), v.literal("pro"), v.literal("team")),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q: any) => q.eq("email", args.email.toLowerCase()))
-      .unique();
+    const normalizedEmail = args.email?.toLowerCase();
+    const user = args.clerkUserId
+      ? await ctx.db.query("users").withIndex("by_clerk_user_id", (q: any) => q.eq("clerkUserId", args.clerkUserId)).unique()
+      : args.stripeCustomerId
+        ? await ctx.db.query("users").withIndex("by_stripe_customer_id", (q: any) => q.eq("stripeCustomerId", args.stripeCustomerId)).unique()
+        : normalizedEmail
+          ? await ctx.db.query("users").withIndex("by_email", (q: any) => q.eq("email", normalizedEmail)).unique()
+          : null;
     if (!user) return null;
     await ctx.db.patch(user._id, {
       stripeCustomerId: args.stripeCustomerId,
