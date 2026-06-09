@@ -6,10 +6,12 @@ Provider-ready SaaS MVP for branded QR codes, PNG/SVG/PDF exports, demo analytic
 
 - Next.js 16 App Router, React 19, TypeScript
 - Tailwind CSS v4, dark/light mode
-- Supabase Postgres, Auth, Storage-ready schema
+- Clerk auth
+- Convex.dev database/backend schema for users, QR codes, scans, and conversions
 - Stripe Checkout, billing portal, webhook route with env guards
 - QR generation with `qrcode`, PNG/SVG/PDF exports
 - Recharts demo analytics, Sonner toasts
+- Coolify/Hetzner dynamic Next.js deployment target
 
 ## Run locally
 
@@ -19,17 +21,15 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Demo mode works without Supabase or Stripe env vars. Auth actions show setup toasts, dashboard uses seed data, and paid checkout returns a clear 503 until Stripe is configured.
+Demo mode works without Clerk, Convex, or Stripe env vars. Auth actions show setup guidance, dashboard uses seed data, and paid checkout returns a clear 503 until Stripe is configured.
 
-## Supabase setup
+## Clerk + Convex setup
 
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in SQL editor.
-3. Enable Auth providers:
-   - Email magic links
-   - Google OAuth
-4. Create Storage bucket `qr-assets` for logos and AI art.
-5. Replace the user id in `supabase/seed.sql` and run it for demo data.
+1. Create a Clerk app and configure email/social providers.
+2. Create a Convex project and deploy the `convex/` schema/functions.
+3. In Clerk, create a JWT template named `convex` with email/sub claims.
+4. In Convex Dashboard → Settings → Auth, add Clerk as the auth provider.
+5. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CONVEX_URL`, and `CONVEX_DEPLOYMENT` in Coolify.
 
 ## Stripe setup
 
@@ -52,25 +52,28 @@ Events to listen for:
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
 
-## Vercel deploy
+## Coolify/Hetzner deploy
 
-```bash
-vercel
-vercel env add NEXT_PUBLIC_SUPABASE_URL
-vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
-vercel env add STRIPE_SECRET_KEY
-vercel env add STRIPE_WEBHOOK_SECRET
-vercel env add STRIPE_STARTER_PRICE_ID
-vercel env add STRIPE_PRO_PRICE_ID
-vercel env add STRIPE_TEAM_PRICE_ID
-vercel env add NEXT_PUBLIC_APP_URL
+Deploy as a dynamic Next.js app, not a static export. Required envs:
+
+```text
+NEXT_PUBLIC_APP_URL
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+CLERK_SECRET_KEY
+NEXT_PUBLIC_CONVEX_URL
+CONVEX_DEPLOYMENT
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+STRIPE_STARTER_PRICE_ID
+STRIPE_PRO_PRICE_ID
+STRIPE_TEAM_PRICE_ID
 ```
 
 ## Implemented routes
 
 - `/`: SEO landing page modeled after QR-Verse: clean nav, announcement-style CTA, AI QR hero, guide/pricing sections
 - `/pricing`: freemium and paid plans
-- `/auth`: magic link and Google OAuth UI
+- `/auth`: Clerk setup/sign-in panel
 - `/dashboard`: demo overview, QR list, stats
 - `/dashboard/create`: live QR generator, styling, exports, AI art provider-ready demo button, Smart Redirect preview
 - `/dashboard/analytics`: demo scan and conversion charts
@@ -83,5 +86,5 @@ vercel env add NEXT_PUBLIC_APP_URL
 ## Production notes
 
 - The AI art endpoint is key-aware. It returns scan-safe demo output without keys and is ready to wire to the preferred OpenAI or Replicate Flux model.
-- Dynamic QR logging currently writes structured events to server logs in demo mode. Connect it to Supabase inserts once env vars are set.
-- RLS policies are included for user-owned records.
+- Dynamic QR logging currently writes structured events to server logs in demo mode. Connect it to Convex mutations once env vars are set.
+- Convex functions use `ctx.auth.getUserIdentity()` as the database security boundary.

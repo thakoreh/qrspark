@@ -1,10 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export function proxy(request: NextRequest) {
-  const publicPaths = ["/", "/pricing", "/auth", "/auth/callback", "/robots.txt", "/sitemap.xml"];
-  const pathname = request.nextUrl.pathname;
-  if (publicPaths.includes(pathname) || pathname.startsWith("/api") || pathname.startsWith("/_next")) return NextResponse.next();
-  return NextResponse.next();
-}
+const hasClerk = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
+const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/admin(.*)"]);
+
+const protectedProxy = clerkMiddleware(async (auth, req) => {
+  if (isProtectedRoute(req)) await auth.protect();
+});
+
+export default hasClerk ? protectedProxy : function openProxy() { return NextResponse.next(); };
 
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
