@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { ChartLineUp, Copy, DownloadSimple, MagnifyingGlass, QrCode, Trash, PlusSquare } from "@phosphor-icons/react";
+import { ChartLineUp, Copy, DownloadSimple, MagnifyingGlass, QrCode, PlusSquare } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { inputClass } from "@/components/ui";
@@ -15,7 +15,6 @@ export function QrTable({ focusSlug = "" }: { focusSlug?: string }) {
   const qrs = useQuery(api.qrCodes.listMine);
   const analytics = useQuery(api.qrCodes.analyticsMine);
   const duplicateQr = useMutation(api.qrCodes.duplicate);
-  const removeQr = useMutation(api.qrCodes.remove);
   const statsBySlug = useMemo(() => new Map<string, CampaignStats>((analytics?.campaigns ?? []).map((campaign: CampaignStats) => [campaign.slug, campaign])), [analytics]);
   const rows = useMemo(() => {
     const source = (qrs ?? []) as QrRow[];
@@ -53,12 +52,6 @@ export function QrTable({ focusSlug = "" }: { focusSlug?: string }) {
     toast.success(`Duplicated ${row.name}`);
   }
 
-  async function remove(row: QrRow) {
-    if (!window.confirm(`Delete ${row.name}? This removes it from your dashboard.`)) return;
-    await removeQr({ id: row._id as never });
-    toast.success(`Deleted ${row.name}`);
-  }
-
   return <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
     <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto]">
       <label className="relative"><MagnifyingGlass className="absolute left-4 top-3.5 text-zinc-400" size={18}/><input className={`${inputClass} w-full pl-11`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search campaigns by name, slug, destination" /></label>
@@ -75,7 +68,7 @@ export function QrTable({ focusSlug = "" }: { focusSlug?: string }) {
     </div> : <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.16em] text-zinc-500"><tr><th className="py-3">Campaign</th><th>Type</th><th>Destination</th><th>Scans</th><th>Conversions</th><th>Created</th><th>Actions</th></tr></thead><tbody className="divide-y divide-zinc-200 dark:divide-white/10">{rows.map((row) => {
       const stats = statsBySlug.get(row.slug);
       const highlighted = focusSlug && row.slug === focusSlug;
-      return <tr key={row._id} className={`align-middle ${highlighted ? "bg-emerald-500/10" : ""}`}><td className="py-4"><p className="font-semibold">{row.name}</p><p className="text-xs text-zinc-500">/api/scan/{row.slug}</p></td><td className="capitalize">{row.kind}</td><td className="max-w-[260px] truncate">{row.destinationUrl}</td><td className="font-semibold">{stats?.scanCount ?? 0}</td><td>{stats?.conversionCount ?? 0}</td><td>{new Date(row.createdAt).toLocaleDateString()}</td><td><div className="flex gap-2"><a href={`/dashboard/analytics?qr=${encodeURIComponent(row.slug)}`} className="grid size-9 place-items-center rounded-md border border-zinc-200 dark:border-white/10" aria-label={`Track ${row.name}`} title="Track analytics"><ChartLineUp size={16}/></a><button onClick={() => copyUrl(row.slug)} className="grid size-9 place-items-center rounded-md border border-zinc-200 dark:border-white/10" aria-label={`Copy scan URL for ${row.name}`} title="Copy tracked URL"><Copy size={16}/></button><button onClick={() => duplicate(row)} className="grid size-9 place-items-center rounded-md border border-zinc-200 dark:border-white/10" aria-label={`Duplicate ${row.name}`} title="Duplicate"><PlusSquare size={16}/></button><button onClick={() => remove(row)} className="grid size-9 place-items-center rounded-md border border-zinc-200 text-red-600 dark:border-white/10" aria-label={`Delete ${row.name}`} title="Delete"><Trash size={16}/></button></div></td></tr>;
+      return <tr key={row._id} className={`align-middle ${highlighted ? "bg-emerald-500/10" : ""}`}><td className="py-4"><p className="font-semibold">{row.name}</p><p className="text-xs text-zinc-500">/api/scan/{row.slug}</p></td><td className="capitalize">{row.kind}</td><td className="max-w-[260px] truncate">{row.destinationUrl}</td><td className="font-semibold">{stats?.scanCount ?? 0}</td><td>{stats?.conversionCount ?? 0}</td><td>{new Date(row.createdAt).toLocaleDateString()}</td><td><div className="flex gap-2"><a href={`/dashboard/analytics?qr=${encodeURIComponent(row.slug)}`} className="grid size-9 place-items-center rounded-md border border-zinc-200 dark:border-white/10" aria-label={`Track ${row.name}`} title="Track analytics"><ChartLineUp size={16}/></a><button onClick={() => copyUrl(row.slug)} className="grid size-9 place-items-center rounded-md border border-zinc-200 dark:border-white/10" aria-label={`Copy scan URL for ${row.name}`} title="Copy tracked URL"><Copy size={16}/></button><button onClick={() => duplicate(row)} className="grid size-9 place-items-center rounded-md border border-zinc-200 dark:border-white/10" aria-label={`Duplicate ${row.name}`} title="Duplicate"><PlusSquare size={16}/></button></div></td></tr>;
     })}</tbody></table></div>}
   </div>;
 }

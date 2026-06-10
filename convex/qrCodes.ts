@@ -1,6 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { assertServerMutationSecret } from "./billingSecurity";
+import {
+  assertCanCreateQr,
+  assertCanDeleteCampaignQr,
+  assertCanDuplicateQr,
+  normalizeQrSlug,
+  qrDestinationIsAllowed,
+  type StoredQrKind,
+} from "./entitlements";
 
 async function findAuthedUser(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
@@ -44,8 +53,9 @@ export const listMine = query({
 });
 
 export const publicBySlug = query({
-  args: { slug: v.string() },
+  args: { slug: v.string(), serverMutationSecret: v.string() },
   handler: async (ctx, args) => {
+    assertServerMutationSecret(args.serverMutationSecret);
     const qr = await ctx.db.query("qrCodes").withIndex("by_slug", (q: any) => q.eq("slug", args.slug)).first();
     if (!qr) return null;
     return { slug: qr.slug, destinationUrl: qr.destinationUrl, variants: qr.variants, kind: qr.kind };
@@ -73,19 +83,55 @@ export const foldersMine = query({
 export const analyticsMine = query({
   args: {},
   handler: async (ctx) => {
+    function dayKey(timestamp: number) {
+      return new Date(timestamp).toISOString().slice(0, 10);
+    }
+
+    function dayLabel(key: string) {
+      return new Date(`${key}T00:00:00.000Z`).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
+    }
+
+    function deviceBucket(device?: string) {
+      const value = (device || "Unknown").toLowerCase();
+      if (value.includes("iphone") || value.includes("ipad") || value.includes("ios")) return "iOS";
+      if (value.includes("android")) return "Android";
+      if (value.includes("windows") || value.includes("macintosh") || value.includes("linux")) return "Desktop";
+      return "Other";
+    }
+
+    const empty = { qrCount: 0, scanCount: 0, conversionCount: 0, uniqueDevices: 0, campaigns: [], scanSeries: [], deviceStats: [], geoStats: [] };
     const user = await findAuthedUser(ctx);
-    if (!user) return { qrCount: 0, scanCount: 0, conversionCount: 0, uniqueDevices: 0, campaigns: [] };
+    if (!user) return empty;
     const qrs = await ctx.db.query("qrCodes").withIndex("by_user", (q: any) => q.eq("userId", user._id)).collect();
     let scanCount = 0;
     let conversionCount = 0;
     const devices = new Set<string>();
+    const scanDays = new Map<string, { day: string; scans: number; conversions: number }>();
+    const deviceCounts = new Map<string, number>();
+    const geoCounts = new Map<string, number>();
     const campaigns = [];
     for (const qr of qrs) {
       const scans = await ctx.db.query("scans").withIndex("by_qr", (q: any) => q.eq("qrCodeId", qr._id)).collect();
       scanCount += scans.length;
-      for (const scan of scans) if (scan.device) devices.add(scan.device);
+      for (const scan of scans) {
+        if (scan.device) devices.add(scan.device);
+        const key = dayKey(scan.createdAt);
+        const current = scanDays.get(key) || { day: dayLabel(key), scans: 0, conversions: 0 };
+        current.scans += 1;
+        scanDays.set(key, current);
+        const bucket = deviceBucket(scan.device);
+        deviceCounts.set(bucket, (deviceCounts.get(bucket) || 0) + 1);
+        const country = scan.country || "Unknown";
+        geoCounts.set(country, (geoCounts.get(country) || 0) + 1);
+      }
       const conversions = await ctx.db.query("conversions").withIndex("by_qr", (q: any) => q.eq("qrCodeId", qr._id)).collect();
       conversionCount += conversions.length;
+      for (const conversion of conversions) {
+        const key = dayKey(conversion.createdAt);
+        const current = scanDays.get(key) || { day: dayLabel(key), scans: 0, conversions: 0 };
+        current.conversions += 1;
+        scanDays.set(key, current);
+      }
       campaigns.push({
         id: qr._id,
         name: qr.name,
@@ -101,7 +147,10 @@ export const analyticsMine = query({
       });
     }
     campaigns.sort((a, b) => (b.lastScanAt || b.createdAt) - (a.lastScanAt || a.createdAt));
-    return { qrCount: qrs.length, scanCount, conversionCount, uniqueDevices: devices.size, campaigns };
+    const scanSeries = Array.from(scanDays.entries()).sort(([a], [b]) => a.localeCompare(b)).slice(-14).map(([, value]) => value);
+    const deviceStats = Array.from(deviceCounts.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    const geoStats = Array.from(geoCounts.entries()).map(([city, scans]) => ({ city, scans })).sort((a, b) => b.scans - a.scans).slice(0, 8);
+    return { qrCount: qrs.length, scanCount, conversionCount, uniqueDevices: devices.size, campaigns, scanSeries, deviceStats, geoStats };
   },
 });
 
@@ -117,13 +166,31 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const user = await getOrCreateAuthedUser(ctx);
     if (!user) throw new Error("Unable to create user");
+    const kind = args.kind as StoredQrKind;
+    const slug = normalizeQrSlug(args.slug);
+    if (!slug) throw new Error("QR slug is required");
+    if (!qrDestinationIsAllowed(kind, args.destinationUrl)) {
+      throw new Error(kind === "dynamic" ? "Dynamic QR destinations must be HTTP or HTTPS URLs" : "QR destination is required");
+    }
+
+    const existingForUser = await ctx.db.query("qrCodes").withIndex("by_user", (q: any) => q.eq("userId", user._id)).collect();
+    const existingSlug = await ctx.db.query("qrCodes").withIndex("by_slug", (q: any) => q.eq("slug", slug)).first();
+    if (existingSlug) throw new Error("QR slug is already in use");
+
+    assertCanCreateQr({
+      plan: user.plan,
+      kind,
+      existingDynamic: existingForUser.filter((qr) => qr.kind === "dynamic").length,
+      existingStatic: existingForUser.filter((qr) => qr.kind === "static").length,
+    });
+
     const now = Date.now();
     return await ctx.db.insert("qrCodes", {
       userId: user._id,
       name: args.name,
-      slug: args.slug,
+      slug,
       destinationUrl: args.destinationUrl,
-      kind: args.kind,
+      kind,
       folder: args.folder || "General",
       style: args.style || { foreground: "#111827", background: "#ffffff", shape: "rounded" },
       variants: [],
@@ -140,6 +207,13 @@ export const duplicate = mutation({
     if (!user) throw new Error("Unable to create user");
     const qr = await ctx.db.get(args.id);
     if (!qr || qr.userId !== user._id) throw new Error("QR not found");
+    const existingForUser = await ctx.db.query("qrCodes").withIndex("by_user", (q: any) => q.eq("userId", user._id)).collect();
+    assertCanDuplicateQr({
+      plan: user.plan,
+      kind: qr.kind,
+      existingDynamic: existingForUser.filter((existing) => existing.kind === "dynamic").length,
+      existingStatic: existingForUser.filter((existing) => existing.kind === "static").length,
+    });
     const now = Date.now();
     return await ctx.db.insert("qrCodes", {
       userId: user._id,
@@ -163,7 +237,6 @@ export const remove = mutation({
     if (!user) throw new Error("Unable to create user");
     const qr = await ctx.db.get(args.id);
     if (!qr || qr.userId !== user._id) throw new Error("QR not found");
-    await ctx.db.delete(args.id);
-    return { ok: true };
+    return assertCanDeleteCampaignQr();
   },
 });

@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPlan } from "@/lib/plans";
 import { stripe } from "@/lib/stripe";
@@ -15,6 +15,11 @@ export async function GET(request: NextRequest) {
   if (!plan.price) return NextResponse.redirect(absoluteUrl("/dashboard"));
   if (!stripe || !plan.stripePriceId) return NextResponse.json({ error: "Stripe env not configured", plan: plan.id }, { status: 503 });
 
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Sign in before starting checkout" }, { status: 401 });
+  }
+
   const user = await currentUser().catch(() => null);
   const email = user?.primaryEmailAddress?.emailAddress;
   const metadata = {
@@ -22,7 +27,7 @@ export async function GET(request: NextRequest) {
     plan: plan.id,
     appPlan: plan.id,
     label: plan.name,
-    clerkUserId: user?.id ?? "",
+    clerkUserId: userId,
     email: email ?? "",
   };
 

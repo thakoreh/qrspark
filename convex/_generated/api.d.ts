@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as billingSecurity from "../billingSecurity.js";
+import type * as entitlements from "../entitlements.js";
 import type * as qrCodes from "../qrCodes.js";
+import type * as rateLimits from "../rateLimits.js";
 import type * as scans from "../scans.js";
 import type * as users from "../users.js";
 
@@ -19,7 +22,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  billingSecurity: typeof billingSecurity;
+  entitlements: typeof entitlements;
   qrCodes: typeof qrCodes;
+  rateLimits: typeof rateLimits;
   scans: typeof scans;
   users: typeof users;
 }>;

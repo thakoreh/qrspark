@@ -1,4 +1,18 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { api } from "../../../../../convex/_generated/api";
+import { getConvexHttpClient, getServerMutationSecret } from "@/lib/convex-server";
+import {
+  clientKeyFromHeaders,
+  createMemoryRateLimiter,
+  parseJsonWithLimit,
+  rateLimitHeaders,
+} from "@/lib/request-guards";
+
+const artLimiter = createMemoryRateLimiter({ limit: 10, windowMs: 60_000 });
+const maxArtBodyBytes = 1_500_000;
+const artWindowMs = 60_000;
+const artLimit = 20;
 
 function dataUrlToBlob(dataUrl: string) {
   const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
@@ -9,16 +23,58 @@ function dataUrlToBlob(dataUrl: string) {
 
 export async function POST(request: Request) {
   try {
-    const { prompt, qr } = await request.json();
+    const serverMutationSecret = getServerMutationSecret();
+    const clientKey = clientKeyFromHeaders(request.headers, "ai-art");
+    const rateLimit = artLimiter.check(clientKey);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many AI art requests" },
+        { status: 429, headers: rateLimitHeaders(rateLimit) },
+      );
+    }
+
+    const body = await parseJsonWithLimit(request, maxArtBodyBytes);
+    if (!body.ok) {
+      return NextResponse.json({ error: body.reason }, { status: body.reason === "Payload too large" ? 413 : 400 });
+    }
+
+    const { prompt, qr } = body.data as { prompt?: string; qr?: string };
     if (!qr) return NextResponse.json({ error: "Missing QR image" }, { status: 400 });
+    const qrBlob = dataUrlToBlob(qr);
 
     if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ imageUrl: qr, demo: true, prompt, note: "No AI provider key is configured. QR fallback returned." });
+      return NextResponse.json({ error: "AI provider is not configured" }, { status: 503 });
     }
+
+    const { userId, getToken } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Sign in before using AI art" }, { status: 401 });
+    }
+
+    const token = await getToken({ template: "convex" }).catch(() => null);
+    if (!token) {
+      return NextResponse.json({ error: "Convex auth token not configured" }, { status: 503 });
+    }
+
+    const convex = getConvexHttpClient({ authToken: token });
+    const sharedRateLimit = await convex.mutation(api.rateLimits.checkAndConsume, {
+      key: clientKey,
+      limit: artLimit,
+      windowMs: artWindowMs,
+      serverMutationSecret,
+    });
+    if (!sharedRateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many AI art requests" },
+        { status: 429, headers: rateLimitHeaders(sharedRateLimit) },
+      );
+    }
+
+    await convex.mutation(api.users.consumeAiCredit, { credits: 1 });
 
     const form = new FormData();
     form.append("model", "gpt-image-1");
-    form.append("image", dataUrlToBlob(qr), "qrspark-qr.png");
+    form.append("image", qrBlob, "qrspark-qr.png");
     form.append("size", "1024x1024");
     form.append("quality", "low");
     form.append("prompt", [

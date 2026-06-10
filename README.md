@@ -14,7 +14,7 @@ Generic QR generation is a commodity. QR Code Generator Pro sells dynamic QR, sc
 - Convex.dev database/backend schema for users, QR codes, scans, and conversions
 - Stripe Checkout, billing portal, webhook route with env guards
 - QR generation with `qrcode`, PNG/SVG/PDF exports
-- Recharts demo analytics, Sonner toasts
+- Real workspace analytics, Recharts, Sonner toasts
 - Coolify/Hetzner dynamic Next.js deployment target
 
 ## Implemented routes
@@ -22,30 +22,71 @@ Generic QR generation is a commodity. QR Code Generator Pro sells dynamic QR, sc
 - `/`: local-business QR campaign landing page
 - `/pricing`: freemium and paid local campaign plans
 - `/auth`: Clerk setup/sign-in panel
-- `/dashboard`: demo campaign overview, QR list, stats
-- `/dashboard/create`: live QR generator, styling, exports, AI art provider-ready demo button, Smart Redirect preview
-- `/dashboard/analytics`: demo scan and conversion charts
+- `/dashboard`: campaign overview, QR list, stats
+- `/dashboard/create`: live QR generator, styling, exports, AI art, Smart Redirect preview
+- `/dashboard/analytics`: real scan and conversion charts
 - `/dashboard/folders`: client/campaign collections
 - `/admin`: operator dashboard for plans and usage
-- `/api/scan/[slug]`: demo dynamic QR redirect with weighted A/B split and server-log scan events
-- `/api/conversion`: conversion pixel endpoint
+- `/api/scan/[slug]`: dynamic QR redirect with weighted A/B split, scan logging, slug safety, and rate limits
+- `/api/conversion`: validated conversion pixel endpoint with rate and payload limits
 - `/api/stripe/checkout`, `/api/stripe/portal`, `/api/webhooks/stripe`
+- `/api/health`: readiness endpoint for production env checks and container health
 
 ## Pricing hypothesis
 
 - Free: one campaign QR and basic scan preview
 - Starter $9/mo: solo local business campaigns and print-ready exports
 - Growth/Pro $19/mo: smart redirects, conversion pixels, and campaign attribution
-- Team $39/mo: agency/client folders and white-label workflow placeholder
+- Team $39/mo: agency/client folders, team seat hypothesis, and white-label workflow placeholder
 
 ## Production notes
 
-- The AI art endpoint is key-aware. It returns scan-safe demo output without keys and is ready to wire to the preferred OpenAI or Replicate Flux model.
-- Dynamic QR logging currently writes structured events to server logs in demo mode. Connect it to Convex mutations once env vars are set.
+- Protected routes fail closed when Clerk is not configured in production paths.
+- `/api/health` returns `503` in production when required auth, Convex, Stripe, or app URL env vars are missing.
+- Dynamic QR logging and conversion logging write to Convex when env vars and auth are configured.
+- AI art requires Clerk auth, a Convex JWT template named `convex`, an OpenAI key, request limits, and available plan credits.
+- Stripe Checkout requires a signed-in user. Billing portal sessions are created only for the authenticated user's stored Stripe customer.
+- Security headers include CSP, frame blocking, content type sniffing protection, referrer policy, and permissions policy.
 - Convex functions use `ctx.auth.getUserIdentity()` as the database security boundary.
+
+## Required production env
+
+Set these before deploying:
+
+```bash
+NEXT_PUBLIC_APP_URL=https://your-domain.example
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
+CLERK_SECRET_KEY=sk_live_...
+CLERK_JWT_ISSUER_DOMAIN=https://...
+NEXT_PUBLIC_CONVEX_URL=https://...
+CONVEX_SERVER_MUTATION_SECRET=...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_STARTER_PRICE_ID=price_...
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_TEAM_PRICE_ID=price_...
+BILLING_SYNC_SECRET=...
+OPENAI_API_KEY=sk-...
+```
+
+`OPENAI_API_KEY` is required only for AI poster generation. The app can serve QR, analytics, and billing flows without it, but `/api/ai/art` returns `503` until configured.
+
+Set `BILLING_SYNC_SECRET` and `CONVEX_SERVER_MUTATION_SECRET` to strong random values. Each value must match between the Next.js runtime and Convex environment variables. Stripe webhook syncs and server-only analytics/rate-limit mutations are rejected unless the matching secret is present inside Convex.
+
+## Deployment smoke check
+
+After deployment, run:
+
+```bash
+SMOKE_BASE_URL=https://your-domain.example npm run production:smoke
+```
+
+The smoke check verifies `/api/health`, `/`, `/pricing`, and the required security headers. The Docker image also includes a healthcheck against `/api/health`.
 
 ## Verification
 ```bash
+npm test
 npm run lint
 npm run build
+npm audit --omit=dev
 ```

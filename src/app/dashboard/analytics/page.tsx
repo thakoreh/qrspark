@@ -51,6 +51,6 @@ function AnalyticsPageContent(){
     </Panel> : null}
 
     <QrTable focusSlug={focusSlug}/>
-    <AnalyticsCharts hasData={hasData}/>
+    <AnalyticsCharts analytics={analytics} hasData={hasData}/>
   </div>;
 }

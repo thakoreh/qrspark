@@ -49,4 +49,11 @@ export default defineSchema({
     value: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_slug", ["slug"]).index("by_qr", ["qrCodeId"]),
+
+  rateLimits: defineTable({
+    key: v.string(),
+    count: v.number(),
+    resetAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]).index("by_reset", ["resetAt"]),
 });

@@ -29,9 +29,10 @@ async function syncBilling(args: {
   plan: PlanId;
 }) {
   if (!args.email && !args.clerkUserId && !args.stripeCustomerId) return;
+  if (!process.env.BILLING_SYNC_SECRET) throw new Error("Billing sync secret is not configured");
 
   const convex = getConvexHttpClient();
-  await convex?.mutation(api.users.updateBilling, args);
+  await convex?.mutation(api.users.updateBilling, { ...args, billingSyncSecret: process.env.BILLING_SYNC_SECRET });
 }
 
 async function syncCheckoutSession(session: Stripe.Checkout.Session) {
@@ -69,7 +70,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 }
 
 export async function POST(request: Request) {
-  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET || !process.env.BILLING_SYNC_SECRET) {
     return NextResponse.json({ error: "Stripe webhook env not configured" }, { status: 503 });
   }
 
