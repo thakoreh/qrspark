@@ -74,19 +74,34 @@ export const analyticsMine = query({
   args: {},
   handler: async (ctx) => {
     const user = await findAuthedUser(ctx);
-    if (!user) return { qrCount: 0, scanCount: 0, conversionCount: 0, uniqueDevices: 0 };
+    if (!user) return { qrCount: 0, scanCount: 0, conversionCount: 0, uniqueDevices: 0, campaigns: [] };
     const qrs = await ctx.db.query("qrCodes").withIndex("by_user", (q: any) => q.eq("userId", user._id)).collect();
     let scanCount = 0;
     let conversionCount = 0;
     const devices = new Set<string>();
+    const campaigns = [];
     for (const qr of qrs) {
       const scans = await ctx.db.query("scans").withIndex("by_qr", (q: any) => q.eq("qrCodeId", qr._id)).collect();
       scanCount += scans.length;
       for (const scan of scans) if (scan.device) devices.add(scan.device);
       const conversions = await ctx.db.query("conversions").withIndex("by_qr", (q: any) => q.eq("qrCodeId", qr._id)).collect();
       conversionCount += conversions.length;
+      campaigns.push({
+        id: qr._id,
+        name: qr.name,
+        slug: qr.slug,
+        kind: qr.kind,
+        destinationUrl: qr.destinationUrl,
+        folder: qr.folder || "General",
+        scanCount: scans.length,
+        conversionCount: conversions.length,
+        uniqueDevices: new Set(scans.map((scan) => scan.device).filter(Boolean)).size,
+        lastScanAt: scans.reduce((latest, scan) => Math.max(latest, scan.createdAt), 0),
+        createdAt: qr.createdAt,
+      });
     }
-    return { qrCount: qrs.length, scanCount, conversionCount, uniqueDevices: devices.size };
+    campaigns.sort((a, b) => (b.lastScanAt || b.createdAt) - (a.lastScanAt || a.createdAt));
+    return { qrCount: qrs.length, scanCount, conversionCount, uniqueDevices: devices.size, campaigns };
   },
 });
 

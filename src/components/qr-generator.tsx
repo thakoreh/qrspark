@@ -32,6 +32,7 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
   const [dataUrl, setDataUrl] = useState("");
   const [artUrl, setArtUrl] = useState("");
   const [loadingArt, setLoadingArt] = useState(false);
+  const [lastSaved, setLastSaved] = useState<{ name: string; slug: string; destination: string; scanUrl: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const destinationPayload = useMemo(() => payloadFor(kind, values), [kind, values]);
   const isDynamicLive = dynamic && savedDynamic?.slug === slug && savedDynamic.destinationPayload === destinationPayload;
@@ -42,7 +43,7 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
   useEffect(() => {
     renderStyledQr({ payload, dark, light, style, logoUrl }).then(setDataUrl).catch(() => toast.error("QR preview failed"));
   }, [payload, dark, light, style, logoUrl]);
-  function update(key: string, value: string) { setArtUrl(""); setValues((current) => ({ ...current, [key]: value })); }
+  function update(key: string, value: string) { setArtUrl(""); setLastSaved(null); setValues((current) => ({ ...current, [key]: value })); }
   async function download(format: "png" | "svg" | "pdf" | "poster") {
     if (format === "poster") { const poster = artUrl || await renderCampaignPoster({ qrDataUrl: dataUrl, campaignName, style, dark, light, logoUrl }); const a = document.createElement("a"); a.href = poster; a.download = "qrspark-campaign-poster.png"; a.click(); }
     if (format === "png") { const a = document.createElement("a"); a.href = dataUrl; a.download = "qrspark-code.png"; a.click(); }
@@ -68,7 +69,9 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
     const destinationUrl = kind === "url" ? values.url || destinationPayload : destinationPayload;
     await createQr({ name, slug: cleanSlug, destinationUrl, kind: dynamic ? "dynamic" : "static", folder, style: { foreground: dark, background: light, shape: style, logoUrl: logoUrl || undefined } });
     setSavedDynamic(dynamic ? { slug: cleanSlug, destinationPayload } : null);
-    toast.success(dynamic ? "Saved. This QR now tracks scans in analytics." : "Saved to your workspace");
+    const scanUrl = typeof window === "undefined" ? `/api/scan/${cleanSlug}` : `${window.location.origin}/api/scan/${cleanSlug}`;
+    setLastSaved({ name, slug: cleanSlug, destination: destinationUrl, scanUrl });
+    toast.success(dynamic ? "Saved. Use the tracked QR URL to collect analytics." : "Saved to your workspace.");
   }
   const field = (key: string, label: string, placeholder = "") => <Field label={label}><input className={inputClass} value={values[key] || ""} placeholder={placeholder} onChange={(event) => update(key, event.target.value)} /></Field>;
   return <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
@@ -85,6 +88,15 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
       <div className="grid place-items-center rounded-lg bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.12),transparent_35%),linear-gradient(135deg,#fafafa,#f4f4f5)] p-3 dark:bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.18),transparent_35%),linear-gradient(135deg,#18181b,#09090b)]">{dataUrl ? <NextImage unoptimized src={artUrl || dataUrl} alt="QR preview" width={420} height={420} className="aspect-square w-full max-w-[380px] rounded-lg bg-white shadow-2xl" /> : <div className="size-72 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />}</div>
       <div className="grid grid-cols-4 gap-2"><button onClick={() => download("png")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">PNG</button><button onClick={() => download("svg")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">SVG</button><button onClick={() => download("pdf")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">PDF</button><button onClick={() => download("poster")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">Poster</button></div>
       <Button onClick={saveCampaign}>{isPublic ? "Create free workspace" : "Save campaign"}</Button>
+      {lastSaved ? <div className="grid gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+        <div><p className="font-semibold text-emerald-800 dark:text-emerald-200">Saved: {lastSaved.name}</p><p className="mt-1 break-all text-xs text-zinc-600 dark:text-zinc-300">Tracked scan URL: {lastSaved.scanUrl}</p></div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <a href={`/dashboard/analytics?qr=${encodeURIComponent(lastSaved.slug)}`} className="inline-flex min-h-10 items-center justify-center rounded-md bg-zinc-950 px-3 text-xs font-semibold text-white dark:bg-white dark:text-zinc-950">Track analytics</a>
+          <a href="/dashboard" className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-xs font-semibold dark:border-white/10">View workspace</a>
+          <button onClick={() => navigator.clipboard?.writeText(lastSaved.scanUrl).then(() => toast.success("Tracked URL copied"))} className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 px-3 text-xs font-semibold dark:border-white/10">Copy tracked URL</button>
+        </div>
+        <p className="text-xs text-zinc-500">Print or share the tracked QR after saving. Scans against this URL populate the analytics page for this campaign.</p>
+      </div> : null}
       <Button onClick={makeArt} disabled={loadingArt} className="gap-2 bg-emerald-600 text-white dark:bg-emerald-400 dark:text-zinc-950">{loadingArt ? <ArrowsClockwise className="animate-spin" size={18} /> : <Sparkle size={18} weight="bold" />} Create campaign poster</Button>
       <p className="text-sm text-zinc-500">{isPublic ? "PNG, SVG, PDF, and poster exports work now. Dynamic redirects and analytics require saving to a workspace." : "Logo and poster art stay outside the QR modules. Dynamic scan URLs go live only after the campaign is saved."}</p>
     </Panel>
