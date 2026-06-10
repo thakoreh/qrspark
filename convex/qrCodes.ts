@@ -132,3 +132,38 @@ export const create = mutation({
     });
   },
 });
+
+export const duplicate = mutation({
+  args: { id: v.id("qrCodes") },
+  handler: async (ctx, args) => {
+    const user = await getOrCreateAuthedUser(ctx);
+    if (!user) throw new Error("Unable to create user");
+    const qr = await ctx.db.get(args.id);
+    if (!qr || qr.userId !== user._id) throw new Error("QR not found");
+    const now = Date.now();
+    return await ctx.db.insert("qrCodes", {
+      userId: user._id,
+      name: `${qr.name} copy`,
+      slug: `${qr.slug}-copy-${now.toString(36)}`,
+      destinationUrl: qr.destinationUrl,
+      kind: qr.kind,
+      folder: qr.folder || "General",
+      style: qr.style,
+      variants: qr.variants || [],
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("qrCodes") },
+  handler: async (ctx, args) => {
+    const user = await getOrCreateAuthedUser(ctx);
+    if (!user) throw new Error("Unable to create user");
+    const qr = await ctx.db.get(args.id);
+    if (!qr || qr.userId !== user._id) throw new Error("QR not found");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});

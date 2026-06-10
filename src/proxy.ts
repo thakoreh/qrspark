@@ -5,7 +5,7 @@ const hasClerk = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && proces
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/admin(.*)"]);
 
 const protectedProxy = clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) await auth.protect();
+  if (isProtectedRoute(req)) await auth.protect({ unauthenticatedUrl: new URL("/sign-in", req.url).toString() });
 });
 
 export default hasClerk ? protectedProxy : function openProxy() { return NextResponse.next(); };
