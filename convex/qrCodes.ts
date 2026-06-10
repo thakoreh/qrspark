@@ -43,6 +43,33 @@ export const listMine = query({
   },
 });
 
+export const publicBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args) => {
+    const qr = await ctx.db.query("qrCodes").withIndex("by_slug", (q: any) => q.eq("slug", args.slug)).first();
+    if (!qr) return null;
+    return { slug: qr.slug, destinationUrl: qr.destinationUrl, variants: qr.variants, kind: qr.kind };
+  },
+});
+
+export const foldersMine = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await findAuthedUser(ctx);
+    if (!user) return [];
+    const qrs = await ctx.db.query("qrCodes").withIndex("by_user", (q: any) => q.eq("userId", user._id)).collect();
+    const groups = new Map<string, { name: string; count: number; updatedAt: number }>();
+    for (const qr of qrs) {
+      const name = qr.folder || "General";
+      const current = groups.get(name) || { name, count: 0, updatedAt: 0 };
+      current.count += 1;
+      current.updatedAt = Math.max(current.updatedAt, qr.updatedAt || qr.createdAt);
+      groups.set(name, current);
+    }
+    return Array.from(groups.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+});
+
 export const analyticsMine = query({
   args: {},
   handler: async (ctx) => {
@@ -69,6 +96,8 @@ export const create = mutation({
     slug: v.string(),
     destinationUrl: v.string(),
     kind: v.union(v.literal("static"), v.literal("dynamic")),
+    folder: v.optional(v.string()),
+    style: v.optional(v.object({ foreground: v.string(), background: v.string(), shape: v.string(), logoUrl: v.optional(v.string()) })),
   },
   handler: async (ctx, args) => {
     const user = await getOrCreateAuthedUser(ctx);
@@ -80,7 +109,8 @@ export const create = mutation({
       slug: args.slug,
       destinationUrl: args.destinationUrl,
       kind: args.kind,
-      style: { foreground: "#111827", background: "#ffffff", shape: "rounded" },
+      folder: args.folder || "General",
+      style: args.style || { foreground: "#111827", background: "#ffffff", shape: "rounded" },
       variants: [],
       createdAt: now,
       updatedAt: now,

@@ -20,6 +20,7 @@ export default defineSchema({
     slug: v.string(),
     destinationUrl: v.string(),
     kind: v.union(v.literal("static"), v.literal("dynamic")),
+    folder: v.optional(v.string()),
     style: v.object({
       foreground: v.string(),
       background: v.string(),
