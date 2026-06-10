@@ -1,6 +1,8 @@
 export type QrKind = "url" | "text" | "wifi" | "vcard" | "email" | "sms" | "phone";
 
 export function payloadFor(kind: QrKind, values: Record<string, string>) {
+  if (kind === "url") return values.url?.trim() || "https://qrspark.io";
+  if (kind === "text") return values.content?.trim() || "Add your text here";
   if (kind === "wifi") return `WIFI:T:${values.encryption || "WPA"};S:${values.ssid || ""};P:${values.password || ""};;`;
   if (kind === "vcard") return `BEGIN:VCARD
 VERSION:3.0
@@ -13,7 +15,7 @@ END:VCARD`;
   if (kind === "email") return `mailto:${values.email || ""}?subject=${encodeURIComponent(values.subject || "")}&body=${encodeURIComponent(values.body || "")}`;
   if (kind === "sms") return `SMSTO:${values.phone || ""}:${values.message || ""}`;
   if (kind === "phone") return `tel:${values.phone || ""}`;
-  return values.content || values.url || "https://qrspark.io";
+  return values.url?.trim() || values.content?.trim() || "https://qrspark.io";
 }
 
 export function weightedDestination(destinations: { url: string; weight: number }[]) {

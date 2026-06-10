@@ -25,23 +25,26 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
   const [light, setLight] = useState("#ffffff");
   const [style, setStyle] = useState("rounded");
   const [folder, setFolder] = useState("General");
-  const [dynamic, setDynamic] = useState(true);
+  const [dynamic, setDynamic] = useState(!isPublic);
   const [slug, setSlug] = useState(() => `qr-${Date.now().toString(36)}`);
+  const [savedDynamic, setSavedDynamic] = useState<{ slug: string; destinationPayload: string } | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [dataUrl, setDataUrl] = useState("");
   const [artUrl, setArtUrl] = useState("");
   const [loadingArt, setLoadingArt] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const destinationPayload = useMemo(() => payloadFor(kind, values), [kind, values]);
+  const isDynamicLive = dynamic && savedDynamic?.slug === slug && savedDynamic.destinationPayload === destinationPayload;
   const payload = useMemo(() => {
-    if (!dynamic || typeof window === "undefined") return destinationPayload;
+    if (!isDynamicLive || typeof window === "undefined") return destinationPayload;
     return `${window.location.origin}/api/scan/${slug}`;
-  }, [destinationPayload, dynamic, slug]);
+  }, [destinationPayload, isDynamicLive, slug]);
   useEffect(() => {
     renderStyledQr({ payload, dark, light, style, logoUrl }).then(setDataUrl).catch(() => toast.error("QR preview failed"));
   }, [payload, dark, light, style, logoUrl]);
-  function update(key: string, value: string) { setValues((current) => ({ ...current, [key]: value })); }
-  async function download(format: "png" | "svg" | "pdf") {
+  function update(key: string, value: string) { setArtUrl(""); setValues((current) => ({ ...current, [key]: value })); }
+  async function download(format: "png" | "svg" | "pdf" | "poster") {
+    if (format === "poster") { const poster = artUrl || await renderCampaignPoster({ qrDataUrl: dataUrl, campaignName, style, dark, light, logoUrl }); const a = document.createElement("a"); a.href = poster; a.download = "qrspark-campaign-poster.png"; a.click(); }
     if (format === "png") { const a = document.createElement("a"); a.href = dataUrl; a.download = "qrspark-code.png"; a.click(); }
     if (format === "svg") { const svg = await QRCode.toString(payload, { type: "svg", color: { dark, light }, errorCorrectionLevel: "H", margin: 2 }); const blob = new Blob([svg], { type: "image/svg+xml" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "qrspark-code.svg"; a.click(); }
     if (format === "pdf") { const pdf = new jsPDF({ unit: "px", format: [560, 700] }); pdf.setFontSize(24); pdf.text("QRSpark QR Code", 70, 70); pdf.addImage(dataUrl, "PNG", 70, 110, 420, 420); pdf.save("qrspark-code.pdf"); }
@@ -49,11 +52,10 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
   }
   async function makeArt() {
     setLoadingArt(true);
-    const res = await fetch("/api/ai/art", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: `${style} branded campaign poster`, qr: dataUrl }) });
-    const json = await res.json();
-    setArtUrl(json.imageUrl || "");
+    const poster = await renderCampaignPoster({ qrDataUrl: dataUrl, campaignName, style, dark, light, logoUrl });
+    setArtUrl(poster);
     setLoadingArt(false);
-    toast[json.demo ? "warning" : "success"](json.demo ? (json.note || "AI art unavailable; scan-safe QR returned.") : "Art QR generated and scannability checked.");
+    toast.success("Campaign poster created. The real QR is overlaid unchanged for scanning.");
   }
   async function saveCampaign() {
     if (isPublic) {
@@ -65,25 +67,26 @@ export function QrGenerator({ mode = "dashboard" }: { mode?: "dashboard" | "publ
     setSlug(cleanSlug);
     const destinationUrl = kind === "url" ? values.url || destinationPayload : destinationPayload;
     await createQr({ name, slug: cleanSlug, destinationUrl, kind: dynamic ? "dynamic" : "static", folder, style: { foreground: dark, background: light, shape: style, logoUrl: logoUrl || undefined } });
+    setSavedDynamic(dynamic ? { slug: cleanSlug, destinationPayload } : null);
     toast.success(dynamic ? "Saved. This QR now tracks scans in analytics." : "Saved to your workspace");
   }
   const field = (key: string, label: string, placeholder = "") => <Field label={label}><input className={inputClass} value={values[key] || ""} placeholder={placeholder} onChange={(event) => update(key, event.target.value)} /></Field>;
   return <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
     <Panel className="grid gap-5">
       <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">{isPublic ? "Free QR generator" : "One-click generator"}</p><h2 className="mt-2 text-3xl font-semibold tracking-tight">{isPublic ? "Create a print-ready QR before you sign up." : "Create, save, test, download."}</h2><p className="mt-2 text-sm leading-6 text-zinc-500">{isPublic ? "Exports work immediately. Create a free workspace when you want dynamic redirects, folders, and analytics." : "Saved campaigns appear in your workspace with scan analytics after real traffic arrives."}</p></div>
-      <div className="grid gap-4 sm:grid-cols-2"><Field label="Campaign name"><input className={inputClass} value={campaignName} onChange={(event) => setCampaignName(event.target.value)} placeholder="Spring menu flyer" /></Field><Field label="Folder"><input className={inputClass} value={folder} onChange={(event) => setFolder(event.target.value || "General")} placeholder="Retail, Events, Clients..." /></Field></div>
+      <div className="grid gap-4 sm:grid-cols-2"><Field label="Campaign name"><input className={inputClass} value={campaignName} onChange={(event) => { setArtUrl(""); setCampaignName(event.target.value); }} placeholder="Spring menu flyer" /></Field><Field label="Folder"><input className={inputClass} value={folder} onChange={(event) => setFolder(event.target.value || "General")} placeholder="Retail, Events, Clients..." /></Field></div>
       <div className="flex flex-wrap gap-2">{kinds.map((item) => <button key={item.id} onClick={() => setKind(item.id)} className={`rounded-md px-4 py-2 text-sm font-semibold transition active:scale-[0.98] ${kind === item.id ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950" : "border border-zinc-200 bg-white dark:border-white/10 dark:bg-zinc-950"}`}>{item.label}</button>)}</div>
       <div className="grid gap-4 sm:grid-cols-2">{kind === "url" && field("url", "Destination URL", "https://...")}{kind === "text" && <Field label="Text"><textarea className={`${inputClass} min-h-28 py-3`} value={values.content || ""} onChange={(event) => update("content", event.target.value)} /></Field>}{kind === "wifi" && <>{field("ssid", "Network name")}{field("password", "Password")}</>}{kind === "vcard" && <>{field("name", "Full name")}{field("company", "Company")}{field("phone", "Phone")}{field("email", "Email")}</>}{kind === "email" && <>{field("email", "Email")}{field("subject", "Subject")}</>}{kind === "sms" && <>{field("phone", "Phone")}{field("message", "Message")}</>}{kind === "phone" && field("phone", "Phone")}</div>
-      <div className="grid gap-4 sm:grid-cols-3"><Field label="Foreground"><input type="color" className="h-11 w-full rounded-md border border-zinc-200 bg-white p-1 dark:border-white/10 dark:bg-zinc-950" value={dark} onChange={(event) => setDark(event.target.value)} /></Field><Field label="Background"><input type="color" className="h-11 w-full rounded-md border border-zinc-200 bg-white p-1 dark:border-white/10 dark:bg-zinc-950" value={light} onChange={(event) => setLight(event.target.value)} /></Field><Field label="Style"><select className={inputClass} value={style} onChange={(event) => setStyle(event.target.value)}><option>rounded</option><option>dots</option><option>minimal</option><option>poster</option></select></Field></div>
-      <div className="grid gap-3 rounded-lg border border-zinc-200 p-4 dark:border-white/10"><label className="flex items-center justify-between gap-3 text-sm font-medium"><span>{isPublic ? "Preview as dynamic campaign" : "Dynamic QR with scan analytics"}</span><input type="checkbox" checked={dynamic} onChange={(event) => setDynamic(event.target.checked)} /></label><button onClick={() => fileRef.current?.click()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold active:scale-[0.98] dark:border-white/10 dark:bg-zinc-950"><UploadSimple size={18} /> Upload logo</button><input ref={fileRef} className="hidden" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { setLogoUrl(String(reader.result || "")); toast.success("Logo added to preview and PNG/PDF exports"); }; reader.readAsDataURL(file); }} /></div>
+      <div className="grid gap-4 sm:grid-cols-3"><Field label="Foreground"><input type="color" className="h-11 w-full rounded-md border border-zinc-200 bg-white p-1 dark:border-white/10 dark:bg-zinc-950" value={dark} onChange={(event) => { setArtUrl(""); setDark(event.target.value); }} /></Field><Field label="Background"><input type="color" className="h-11 w-full rounded-md border border-zinc-200 bg-white p-1 dark:border-white/10 dark:bg-zinc-950" value={light} onChange={(event) => { setArtUrl(""); setLight(event.target.value); }} /></Field><Field label="Style"><select className={inputClass} value={style} onChange={(event) => { setArtUrl(""); setStyle(event.target.value); }}><option>rounded</option><option>dots</option><option>minimal</option><option>poster</option></select></Field></div>
+      <div className="grid gap-3 rounded-lg border border-zinc-200 p-4 dark:border-white/10"><label className="flex items-center justify-between gap-3 text-sm font-medium"><span>{isPublic ? "Static QR by default. Dynamic tracking requires a saved workspace." : "Dynamic QR with scan analytics after save"}</span><input type="checkbox" checked={dynamic} onChange={(event) => { setArtUrl(""); setDynamic(event.target.checked); }} /></label>{dynamic && !isDynamicLive ? <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300">Preview/export uses the actual destination until you save. After save, the QR switches to the trackable scan URL.</p> : null}<button onClick={() => fileRef.current?.click()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold active:scale-[0.98] dark:border-white/10 dark:bg-zinc-950"><UploadSimple size={18} /> Upload logo</button><input ref={fileRef} className="hidden" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { setArtUrl(""); setLogoUrl(String(reader.result || "")); toast.success("Logo kept outside the QR scan pattern"); }; reader.readAsDataURL(file); }} /></div>
     </Panel>
     <Panel className="grid gap-4 lg:sticky lg:top-24 lg:self-start">
-      <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Live preview</p><h3 className="text-2xl font-semibold tracking-tight">Scan-safe output</h3></div><span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">H correction</span></div>
+      <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Live preview</p><h3 className="text-2xl font-semibold tracking-tight">{artUrl ? "Campaign poster" : "Scan-safe output"}</h3></div><span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">{isDynamicLive ? "Tracking live" : "Direct data"}</span></div>
       <div className="grid place-items-center rounded-lg bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.12),transparent_35%),linear-gradient(135deg,#fafafa,#f4f4f5)] p-3 dark:bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.18),transparent_35%),linear-gradient(135deg,#18181b,#09090b)]">{dataUrl ? <NextImage unoptimized src={artUrl || dataUrl} alt="QR preview" width={420} height={420} className="aspect-square w-full max-w-[380px] rounded-lg bg-white shadow-2xl" /> : <div className="size-72 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />}</div>
-      <div className="grid grid-cols-3 gap-2"><button onClick={() => download("png")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">PNG</button><button onClick={() => download("svg")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">SVG</button><button onClick={() => download("pdf")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">PDF</button></div>
+      <div className="grid grid-cols-4 gap-2"><button onClick={() => download("png")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">PNG</button><button onClick={() => download("svg")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">SVG</button><button onClick={() => download("pdf")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">PDF</button><button onClick={() => download("poster")} className="rounded-md border border-zinc-200 py-2 text-sm font-semibold active:scale-[0.98] dark:border-white/10">Poster</button></div>
       <Button onClick={saveCampaign}>{isPublic ? "Create free workspace" : "Save campaign"}</Button>
-      <Button onClick={makeArt} disabled={loadingArt} className="gap-2 bg-emerald-600 text-white dark:bg-emerald-400 dark:text-zinc-950">{loadingArt ? <ArrowsClockwise className="animate-spin" size={18} /> : <Sparkle size={18} weight="bold" />} {isPublic ? "Preview artistic QR" : "Make Artistic"}</Button>
-      <p className="text-sm text-zinc-500">{isPublic ? "PNG, SVG, and PDF exports are available now. Save to a workspace when you want editable destinations and analytics." : "Every saved QR is tied to your account. Scan analytics appear only after your own campaign receives traffic."}</p>
+      <Button onClick={makeArt} disabled={loadingArt} className="gap-2 bg-emerald-600 text-white dark:bg-emerald-400 dark:text-zinc-950">{loadingArt ? <ArrowsClockwise className="animate-spin" size={18} /> : <Sparkle size={18} weight="bold" />} Create campaign poster</Button>
+      <p className="text-sm text-zinc-500">{isPublic ? "PNG, SVG, PDF, and poster exports work now. Dynamic redirects and analytics require saving to a workspace." : "Logo and poster art stay outside the QR modules. Dynamic scan URLs go live only after the campaign is saved."}</p>
     </Panel>
   </div>;
 }
@@ -92,7 +95,11 @@ async function renderStyledQr({ payload, dark, light, style, logoUrl }: { payloa
   const count = qr.modules.size;
   const margin = 2;
   const size = 420;
-  const cell = size / (count + margin * 2);
+  const hasLogo = Boolean(logoUrl);
+  const qrArea = hasLogo ? 336 : size;
+  const offsetX = (size - qrArea) / 2;
+  const offsetY = hasLogo ? 24 : 0;
+  const cell = qrArea / (count + margin * 2);
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -101,16 +108,21 @@ async function renderStyledQr({ payload, dark, light, style, logoUrl }: { payloa
   ctx.fillStyle = light;
   ctx.fillRect(0, 0, size, size);
   ctx.fillStyle = dark;
-  const radius = style === "minimal" ? 0 : style === "dots" ? cell / 2 : style === "poster" ? cell * 0.18 : cell * 0.28;
+  const radius = style === "minimal" ? 0 : style === "dots" ? cell / 2 : style === "poster" ? cell * 0.08 : cell * 0.28;
   for (let row = 0; row < count; row++) {
     for (let col = 0; col < count; col++) {
       if (!qr.modules.get(row, col)) continue;
-      const x = (col + margin) * cell;
-      const y = (row + margin) * cell;
+      const x = offsetX + (col + margin) * cell;
+      const y = offsetY + (row + margin) * cell;
       if (style === "dots") {
         ctx.beginPath();
         ctx.arc(x + cell / 2, y + cell / 2, cell * 0.42, 0, Math.PI * 2);
         ctx.fill();
+      } else if (style === "poster") {
+        ctx.fillRect(x + cell * 0.05, y + cell * 0.05, cell * 0.9, cell * 0.9);
+        ctx.fillStyle = `${dark}cc`;
+        ctx.fillRect(x + cell * 0.25, y + cell * 0.25, cell * 0.5, cell * 0.5);
+        ctx.fillStyle = dark;
       } else {
         roundRect(ctx, x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88, radius);
         ctx.fill();
@@ -119,15 +131,82 @@ async function renderStyledQr({ payload, dark, light, style, logoUrl }: { payloa
   }
   if (logoUrl) {
     const img = await loadImage(logoUrl);
-    const logoSize = size * 0.2;
+    const logoSize = 52;
     const x = (size - logoSize) / 2;
-    const y = (size - logoSize) / 2;
-    roundRect(ctx, x - 10, y - 10, logoSize + 20, logoSize + 20, 18);
+    const y = 354;
+    roundRect(ctx, 92, 342, 236, 72, 22);
     ctx.fillStyle = light;
     ctx.fill();
+    ctx.strokeStyle = `${dark}22`;
+    ctx.stroke();
     ctx.drawImage(img, x, y, logoSize, logoSize);
   }
   return canvas.toDataURL("image/png");
+}
+
+async function renderCampaignPoster({ qrDataUrl, campaignName, style, dark, light, logoUrl }: { qrDataUrl: string; campaignName: string; style: string; dark: string; light: string; logoUrl: string }) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  const gradient = ctx.createLinearGradient(0, 0, 1080, 1350);
+  gradient.addColorStop(0, dark);
+  gradient.addColorStop(0.52, "#111827");
+  gradient.addColorStop(1, "#10b981");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 1080, 1350);
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  for (let i = 0; i < 18; i++) {
+    ctx.beginPath();
+    ctx.arc(80 + i * 67, 160 + (i % 5) * 180, 90 + (i % 3) * 28, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (logoUrl) {
+    const logo = await loadImage(logoUrl);
+    roundRect(ctx, 80, 78, 176, 92, 28);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fill();
+    ctx.drawImage(logo, 106, 98, 124, 52);
+  }
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 76px sans-serif";
+  wrapText(ctx, campaignName.trim() || "Scan to open", 80, 275, 900, 84, 2);
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  ctx.font = "500 34px sans-serif";
+  ctx.fillText(style === "poster" ? "Poster-ready QR campaign" : "Scan the code below", 80, 445);
+  roundRect(ctx, 155, 535, 770, 770, 44);
+  ctx.fillStyle = light || "#ffffff";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.36)";
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  const qr = await loadImage(qrDataUrl);
+  ctx.drawImage(qr, 205, 585, 670, 670);
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.font = "600 24px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("QR image is preserved unchanged for reliable scanning", 540, 1308);
+  ctx.textAlign = "left";
+  return canvas.toDataURL("image/png");
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, maxLines: number) {
+  const words = text.split(/\s+/).filter(Boolean);
+  let line = "";
+  let lines = 0;
+  for (const word of words) {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(line, x, y + lines * lineHeight);
+      line = word;
+      lines += 1;
+      if (lines >= maxLines) return;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line && lines < maxLines) ctx.fillText(line, x, y + lines * lineHeight);
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
