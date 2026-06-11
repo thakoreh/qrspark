@@ -4,7 +4,10 @@ import {
   assertCanCreateQr,
   assertCanDeleteCampaignQr,
   assertCanDuplicateQr,
+  normalizeFolderName,
+  normalizeQrName,
   normalizeQrSlug,
+  normalizeQrStyle,
   qrDestinationIsAllowed,
 } from "./entitlements";
 
@@ -56,6 +59,40 @@ describe("QR creation entitlements", () => {
     expect(qrDestinationIsAllowed("static", "WIFI:T:WPA;S:Guest;P:secret;;")).toBe(true);
     expect(qrDestinationIsAllowed("dynamic", "WIFI:T:WPA;S:Guest;P:secret;;")).toBe(false);
     expect(qrDestinationIsAllowed("dynamic", "https://example.com/menu")).toBe(true);
+  });
+
+  test("rejects overlong destinations before they can be stored", () => {
+    expect(qrDestinationIsAllowed("dynamic", `https://example.com/${"a".repeat(5000)}`)).toBe(false);
+    expect(qrDestinationIsAllowed("static", "a".repeat(5000))).toBe(false);
+  });
+
+  test("normalizes QR display names and folders with safe bounds", () => {
+    expect(normalizeQrName("  Spring menu flyer  ")).toBe("Spring menu flyer");
+    expect(normalizeQrName("")).toBe("Untitled QR campaign");
+    expect(normalizeQrName("a".repeat(200))).toHaveLength(120);
+    expect(normalizeFolderName("  Retail  ")).toBe("Retail");
+    expect(normalizeFolderName("")).toBe("General");
+    expect(normalizeFolderName("a".repeat(120))).toHaveLength(80);
+  });
+
+  test("normalizes QR style and drops unsafe or oversized logos", () => {
+    expect(
+      normalizeQrStyle({
+        foreground: "not-a-color",
+        background: "#00FFaa",
+        shape: "script",
+        logoUrl: "javascript:alert(1)",
+      }),
+    ).toEqual({ foreground: "#111827", background: "#00ffaa", shape: "rounded" });
+
+    expect(
+      normalizeQrStyle({
+        foreground: "#123456",
+        background: "#abcdef",
+        shape: "dots",
+        logoUrl: `data:image/png;base64,${"a".repeat(60_000)}`,
+      }),
+    ).toEqual({ foreground: "#123456", background: "#abcdef", shape: "dots" });
   });
 
   test("blocks AI usage when the plan credit limit is reached", () => {

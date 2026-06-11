@@ -37,7 +37,7 @@ Generic QR generation is a commodity. QR Code Generator Pro sells dynamic QR, sc
 - Free: one campaign QR and basic scan preview
 - Starter $9/mo: solo local business campaigns and print-ready exports
 - Growth/Pro $19/mo: smart redirects, conversion pixels, and campaign attribution
-- Team $39/mo: agency/client folders, team seat hypothesis, and white-label workflow placeholder
+- Team $39/mo: agency/client folders, team seat hypothesis, and white-label reporting workflow
 
 ## Production notes
 
@@ -67,11 +67,27 @@ STRIPE_PRO_PRICE_ID=price_...
 STRIPE_TEAM_PRICE_ID=price_...
 BILLING_SYNC_SECRET=...
 OPENAI_API_KEY=sk-...
+QRFORGE_ADMIN_EMAIL=owner@example.com
+QRFORGE_ADMIN_EMAILS=ops@example.com,finance@example.com
 ```
 
 `OPENAI_API_KEY` is required only for AI poster generation. The app can serve QR, analytics, and billing flows without it, but `/api/ai/art` returns `503` until configured.
 
 Set `BILLING_SYNC_SECRET` and `CONVEX_SERVER_MUTATION_SECRET` to strong random values. Each value must match between the Next.js runtime and Convex environment variables. Stripe webhook syncs and server-only analytics/rate-limit mutations are rejected unless the matching secret is present inside Convex.
+
+`QRFORGE_ADMIN_EMAIL` and `QRFORGE_ADMIN_EMAILS` control access to `/admin`. Leave them empty to fail closed.
+
+## CI
+
+GitHub Actions runs the production quality gates on pull requests and pushes to `main`:
+
+```bash
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
 
 ## Deployment smoke check
 
@@ -87,6 +103,7 @@ The smoke check verifies `/api/health`, `/`, `/pricing`, and the required securi
 ```bash
 npm test
 npm run lint
+npm run typecheck
 npm run build
 npm audit --omit=dev
 ```

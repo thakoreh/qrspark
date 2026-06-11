@@ -1,6 +1,17 @@
 export type PlanId = "free" | "starter" | "pro" | "team";
 export type StoredQrKind = "static" | "dynamic";
 
+const maxQrDestinationLength = 4096;
+const defaultQrName = "Untitled QR campaign";
+const defaultFolderName = "General";
+const defaultQrStyle = {
+  foreground: "#111827",
+  background: "#ffffff",
+  shape: "rounded",
+};
+const allowedQrShapes = new Set(["rounded", "dots", "minimal", "poster"]);
+const dataImageLogoPattern = /^data:image\/(?:png|jpeg|webp|gif);base64,[a-z0-9+/=\s]+$/i;
+
 const limits: Record<PlanId, { dynamic: number; static: number; aiCredits: number }> = {
   free: { dynamic: 1, static: 10, aiCredits: 3 },
   starter: { dynamic: 3, static: -1, aiCredits: 25 },
@@ -17,10 +28,47 @@ export function normalizeQrSlug(value: string) {
     .slice(0, 80);
 }
 
+export function normalizeQrName(value: string) {
+  return value.trim().slice(0, 120) || defaultQrName;
+}
+
+export function normalizeFolderName(value?: string) {
+  return value?.trim().slice(0, 80) || defaultFolderName;
+}
+
+function normalizeHexColor(value: string | undefined, fallback: string) {
+  const color = value?.trim().toLowerCase();
+  if (!color || !/^#[0-9a-f]{6}$/.test(color)) return fallback;
+  return color;
+}
+
+function normalizeLogoUrl(value: string | undefined) {
+  const logoUrl = value?.trim();
+  if (!logoUrl || logoUrl.length > 50_000) return undefined;
+  if (logoUrl.startsWith("https://")) return logoUrl;
+  if (dataImageLogoPattern.test(logoUrl)) return logoUrl;
+  return undefined;
+}
+
+export function normalizeQrStyle(
+  style?: Partial<{ foreground: string; background: string; shape: string; logoUrl: string }>,
+) {
+  const shape = style?.shape?.trim().toLowerCase();
+  const logoUrl = normalizeLogoUrl(style?.logoUrl);
+  return {
+    foreground: normalizeHexColor(style?.foreground, defaultQrStyle.foreground),
+    background: normalizeHexColor(style?.background, defaultQrStyle.background),
+    shape: shape && allowedQrShapes.has(shape) ? shape : defaultQrStyle.shape,
+    ...(logoUrl ? { logoUrl } : {}),
+  };
+}
+
 export function qrDestinationIsAllowed(kind: StoredQrKind, destinationUrl: string) {
-  if (kind === "static") return destinationUrl.trim().length > 0 && destinationUrl.length <= 4096;
+  const destination = destinationUrl.trim();
+  if (!destination || destination.length > maxQrDestinationLength) return false;
+  if (kind === "static") return true;
   try {
-    const url = new URL(destinationUrl);
+    const url = new URL(destination);
     return url.protocol === "https:" || url.protocol === "http:";
   } catch {
     return false;

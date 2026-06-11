@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { api } from "../../../../convex/_generated/api";
 import { getConvexHttpClient, getServerMutationSecret } from "@/lib/convex-server";
+import { logPublicConversion } from "@/lib/public-event-log";
 import { parseConversionPayload } from "@/lib/public-events";
 import {
   clientKeyFromHeaders,
@@ -60,6 +61,6 @@ export async function POST(request: Request) {
   await convex.mutation(api.scans.logConversion, { slug, event, value, serverMutationSecret })
     .catch((error) => console.error("conversion_log_failed", { slug, error: error instanceof Error ? error.message : String(error) }));
 
-  console.log(JSON.stringify({ event: "conversion", slug, name: event, at: new Date().toISOString() }));
+  logPublicConversion({ slug, eventName: event, value });
   return NextResponse.json({ ok: true });
 }

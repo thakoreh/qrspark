@@ -6,7 +6,10 @@ import {
   assertCanCreateQr,
   assertCanDeleteCampaignQr,
   assertCanDuplicateQr,
+  normalizeFolderName,
+  normalizeQrName,
   normalizeQrSlug,
+  normalizeQrStyle,
   qrDestinationIsAllowed,
   type StoredQrKind,
 } from "./entitlements";
@@ -167,9 +170,10 @@ export const create = mutation({
     const user = await getOrCreateAuthedUser(ctx);
     if (!user) throw new Error("Unable to create user");
     const kind = args.kind as StoredQrKind;
+    const destinationUrl = args.destinationUrl.trim();
     const slug = normalizeQrSlug(args.slug);
     if (!slug) throw new Error("QR slug is required");
-    if (!qrDestinationIsAllowed(kind, args.destinationUrl)) {
+    if (!qrDestinationIsAllowed(kind, destinationUrl)) {
       throw new Error(kind === "dynamic" ? "Dynamic QR destinations must be HTTP or HTTPS URLs" : "QR destination is required");
     }
 
@@ -187,12 +191,12 @@ export const create = mutation({
     const now = Date.now();
     return await ctx.db.insert("qrCodes", {
       userId: user._id,
-      name: args.name,
+      name: normalizeQrName(args.name),
       slug,
-      destinationUrl: args.destinationUrl,
+      destinationUrl,
       kind,
-      folder: args.folder || "General",
-      style: args.style || { foreground: "#111827", background: "#ffffff", shape: "rounded" },
+      folder: normalizeFolderName(args.folder),
+      style: normalizeQrStyle(args.style),
       variants: [],
       createdAt: now,
       updatedAt: now,

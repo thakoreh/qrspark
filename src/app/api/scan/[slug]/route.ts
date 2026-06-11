@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { api } from "../../../../../convex/_generated/api";
 import { getConvexHttpClient, getServerMutationSecret } from "@/lib/convex-server";
+import { logPublicScan } from "@/lib/public-event-log";
 import { safeRedirectDestination, sanitizePublicSlug } from "@/lib/public-events";
 import { weightedDestination } from "@/lib/qr";
 import { clientKeyFromHeaders, createMemoryRateLimiter, rateLimitHeaders } from "@/lib/request-guards";
@@ -33,7 +34,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const ua = request.headers.get("user-agent") || "unknown";
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "0.0.0.0";
   const convex = getConvexHttpClient();
   const sharedRateLimit = await convex.mutation(api.rateLimits.checkAndConsume, {
     key: clientKey,
@@ -67,8 +67,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "QR destination is not a safe web URL" }, { status: 422 });
   }
 
-  const ipHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip)).then((b)=>Buffer.from(b).toString("hex").slice(0,12));
-
   await convex.mutation(api.scans.logScan, {
     slug,
     referrer: request.headers.get("referer") || undefined,
@@ -77,6 +75,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     serverMutationSecret,
   }).catch((error) => console.error("scan_log_failed", { slug, error: error instanceof Error ? error.message : String(error) }));
 
-  console.log(JSON.stringify({ event: "scan", slug, ua: ua.slice(0, 120), ipHash, destination: destination.href }));
+  logPublicScan({ slug, destination, userAgent: ua });
   return NextResponse.redirect(destination);
 }

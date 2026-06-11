@@ -15,6 +15,10 @@ export type GeoStatRow = {
 };
 
 export type WorkspaceAnalyticsCharts = {
+  qrCount?: number;
+  scanCount?: number;
+  conversionCount?: number;
+  uniqueDevices?: number;
   scanSeries?: ScanSeriesRow[];
   deviceStats?: DeviceStatRow[];
   geoStats?: GeoStatRow[];
